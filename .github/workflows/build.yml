@@ -1,0 +1,65 @@
+name: Build can-utils for Android arm64
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      NDK_VERSION: '25.2.9519653'
+      API_LEVEL: '21'
+      TARGET_TRIPLE: 'aarch64-linux-android'
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      - name: Install Android NDK
+        uses: android-actions/setup-ndk@v2
+        with:
+          ndk-version: ${{ env.NDK_VERSION }}
+
+      - name: Build can-utils
+        run: |
+          export NDK_PATH=$HOME/android-ndk
+          export TOOLCHAIN=$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64
+          export PATH=$TOOLCHAIN/bin:$PATH
+
+          export CC=${{ env.TARGET_TRIPLE }}${{ env.API_LEVEL }}-clang
+          export AR=${{ env.TARGET_TRIPLE }}-ar
+          export RANLIB=${{ env.TARGET_TRIPLE }}-ranlib
+
+          echo "Using compiler: $CC"
+
+          make clean || true
+          make CC=$CC AR=$AR RANLIB=$RANLIB
+
+          mkdir -p out
+          cp candump cansend canplayer cangen cansniffer out/
+
+      - name: Create release archive
+        run: |
+          tar czvf can-utils-arm64-android14.tar.gz -C out .
+          ls -lh can-utils-arm64-android14.tar.gz
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: can-utils-arm64-android14
+          path: can-utils-arm64-android14.tar.gz
+
+      - name: Create GitHub release
+        id: create_release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v1.0.0
+          name: Release v1.0.0
+          body: 'Auto-built can-utils for Android 14 (arm64)'
+          artifacts: can-utils-arm64-android14.tar.gz
+          draft: false
+          prerelease: false
